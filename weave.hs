@@ -1,3 +1,6 @@
+{-# LANGUAGE OverloadedStrings, BangPatterns #-}
+module Weave (wordsToSVG) where
+
 import Data.List (transpose, group, unfoldr, sort, mapAccumL)
 import qualified Data.ByteString.Lazy.Char8 as B
 import Data.Char
@@ -33,22 +36,21 @@ clear = (255,255,255)
 
 sliceList d t = take t . drop d
 
-display :: HPercentage -> VPercentage -> [String] -> Image
-display stepCount bar words = VConcatBox 1.0 1.0 lines
-  where lineLength = 12
+display :: HPercentage -> Int -> HPercentage -> VPercentage -> [String] -> Image
+display visSize lineLength stepCount bar words = VConcatBox 1.0 1.0 lines
+  where
 	lineCount = fromIntegral $ ceiling (fromIntegral (length words) / fromIntegral lineLength)
-  	lines = [VConcatBox 1.0 (1/lineCount) [displayLine dbdata stepCount bar words idx lineLength] | idx <- [0,lineLength..length words - 2]]
+  	lines = [VConcatBox 1.0 (1/lineCount) [displayLine dbdata visSize stepCount bar words idx lineLength] | idx <- [0,lineLength..length words - 2]]
 	dbdata = M.fromList [lteqgtKV i len | len <- [4,5], i <- [0..(length words - len)]]
 	lteqgtKV d t = ((subslice words), lteqgt conn (subslice wordids)) where subslice = sliceList d t
 	wordids = map (wordidquery conn) words
 
-displayLine dbdata stepCount bar words offset lineLength = HConcatBox 1.0 1.0 (take (lineLength * 2) (visTweens ++ slugs))
+displayLine dbdata visSize stepCount bar words offset lineLength = HConcatBox 1.0 1.0 (take (lineLength * 2) (visTweens ++ slugs))
   where visTweens = zipWith (\ v t -> HConcatBox componentSize 1.0 [HConcatBox visSize 1.0 [v], HConcatBox tweenSize 1.0 [t]]) viss tweens
   	tweens = [VConcatBox 1.0 1.0 [VConcatBox 1.0 lineSize [tween dbdata stepCount bar words idx], ColorBox 1.0 gapSize clear] | idx <- [offset .. maxOffset]]
         viss = [VConcatBox 1.0 1.0 [VConcatBox 1.0 lineSize [vis dbdata bar words idx], TextBox 1.0 gapSize (words !! idx)] | idx <- [offset .. maxOffset]]
   	lineSize = 0.6667
 	gapSize = 1.0 - lineSize
-	visSize = 0.001
 	tweenSize = 1.0 - visSize
 	componentSize = 1.0 / (fromIntegral lineLength)
 	maxOffset = ((offset+lineLength) `min` (length words)) - 1
@@ -106,7 +108,7 @@ legtSql 5 = "select lt, eq, gt from d5 where a = ? and b = ? and c = ? and d = ?
 legtSql 4 = "select lt, eq, gt from d4 where a = ? and b = ? and c = ? and d = ?"
 legtSql _ = "select * from sqlite_master limit 0"
 
-main = B.writeFile "shannon.svg" (imageFrameToSVG (ImageFrame 17 23 (display 200 0.1 $! words "The fundamental problem of communication is that of reproducing at one point either exactly or approximately a message selected at another point . Frequently the messages have meaning ; that is they refer to or are correlated according to some system with certain physical or conceptual entities . These semantic aspects of communication are irrelevant to the engineering problem . The significant aspect is that the actual message is one selected from a set of possible messages .")))
+wordsToSVG ifWidth ifHeight displaySegments visSize lineLength barHeight text = imageFrameToSVG (ImageFrame ifWidth ifHeight (display visSize lineLength displaySegments barHeight (words text)))
 
 imageFrameToSVG :: ImageFrame -> B.ByteString
 imageFrameToSVG (ImageFrame x y i) = makeTopSVG x y (imageToFlatSVG (0,0,1,1) (0,0) i)
@@ -120,9 +122,6 @@ imageToFlatSVG (!x,!y,!w,!h) (!xStart,!yStart) (HConcatBox xPct yPct is) = linea
 linearConcat :: (Double, Double, Double, Double) -> (Double, Double, Double, Double) -> [Image] -> (Double -> Double -> Image -> (Double, Double)) -> B.ByteString
 linearConcat (!x,!y,!w,!h) (!xStart,!yStart,!xPct,!yPct) is acc = B.concat $ snd $ mapAccumL (\ (!xA,!yA) i -> (acc xA yA i, imageToFlatSVG (bx,by,bw,bh) (xA,yA) i)) (0,0) is where (!bx,!by,!bw,!bh) = newBox (x,y,w,h) (xStart,yStart,xPct,yPct)
 
--- mapAccum :: (acc -> x -> (acc,y)) -> acc -> x -> (acc,[y])
--- mapAccum f z lst = 
-
 newBox (!x,!y,!w,!h) (!xStart,!yStart,!xPct,!yPct) = (x + w*xStart, y + h*yStart, w*xPct, h*yPct)
 
 
@@ -130,4 +129,4 @@ floatToPctNumber !f = formatRealFloat FFFixed Nothing (nearestMillionth (f * 100
 
 makeRect (!r,!g,!b) !x !y !w !h = B.pack $! "<rect x='" ++ floatToPctNumber x ++ "%' y='" ++ floatToPctNumber y ++ "%' width='" ++ floatToPctNumber w ++ "%' height='" ++ floatToPctNumber h ++ "%' fill='rgb(" ++ show r ++ "," ++ show g ++ "," ++ show b ++ ")'/>\n"
 makeText !x !y s = B.pack $! "<text font-family='Verdana' font-size='0.15in' dy='0.15in' y='" ++ floatToPctNumber y ++ "%' x='" ++ floatToPctNumber x ++ "%'>" ++ s ++ "</text>\n"
-makeTopSVG !x !y s = B.pack ("<svg width='" ++ show x ++ "in' height='" ++ show y ++ "in' xmlns='http://www.w3.org/2000/svg'><text font-family='Verdana' font-size='0.075in' x='0.0%' y='99.5%' fill='#666666'>Based on the Google Books 4-gram and 5-gram dataset. http://books.google.com/ngrams/datasets  Each word is nested in the previous word at a size proportional to its probability in the largest possible preceding context. The spacing, above and below, corresponds to the probabilities of all words more and less globally popular than that word in the same context.</text>") `B.append` s `B.append` "</svg>"
+makeTopSVG !x !y s = B.pack ("<svg width='" ++ show x ++ "in' height='" ++ show y ++ "in' xmlns='http://www.w3.org/2000/svg'><text font-family='Verdana' font-size='0.06in' x='0.0%' y='99.5%' fill='#666666'>Based on Google Books' 4-gram and 5-gram datasets. http://books.google.com/ngrams/datasets  Each word nests in the previous word at a size proportional to its probability in the largest possible preceding context. The space, above and below, corresponds to the probabilities of all words more and less globally popular than that word in the same context.</text>") `B.append` s `B.append` "</svg>"
