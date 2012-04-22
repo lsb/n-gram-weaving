@@ -1,0 +1,59 @@
+<html>
+<head>
+<style type="text/css">
+textarea { width: 100%; height: 5em }
+form > div { line-height: 2em }
+input { vertical-align: middle }
+output { color: grey }
+
+</style>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5.2/jquery.min.js"></script>
+<script>
+function nearestMillionth(n) { return Math.round(n*1000000) / 1000000 }
+
+$(function() {
+  $("input[type='range']").each(function() {
+    $(this).after("<output/>")
+  }).change(function() {
+    var el=$(this);
+    el.next("output").text(nearestMillionth(el.val()));
+  }).trigger('change');
+  $("#weave").submit(function() {
+    $("#svg-embed").text('');
+    var obj = $("<object>");
+    obj.attr("type", "image/svg+xml");
+    obj.attr("data", "/weave?" + $(this).serialize());
+    $("#svg-embed").append(obj); // attr("data", "/weave?" + $(this).serialize()); // $.get("/weave", $(this).serialize(), function(svg) { $("#svg-embed").html(svg) });
+    return false;
+  });
+});
+</script>
+</head>
+<body>
+<h2>Happy Birthday Claude Shannon!</h2>
+<h3>Visualizing information-theoretic contribution of words to a text</h3>
+<form action="/weave" method="get" id="weave">
+<textarea name="grams">The fundamental problem of communication is that of reproducing at one point either exactly or approximately a message selected at another point . Frequently the messages have meaning ; that is they refer to or are correlated according to some system with certain physical or conceptual entities . These semantic aspects of communication are irrelevant to the engineering problem . The significant aspect is that the actual message is one selected from a set of possible messages .</textarea>
+<div>
+Bar height: <input id="barHeight" name="barHeight" type="range" min="0.01" max="0.49" step="0.01" value="0.1">
+</div>
+<div>
+Display segments: <input name="displaySegments" type="range" min="6" max="499" step="1" value="50" />
+</div>
+<div>
+Total height: <input name="ifHeight" type="range" min="1" max="50" step="1" value="23" />
+</div>
+<div>
+Total width: <input name="ifWidth" type="range" min="1" max="25" step="1" value="17" />
+</div>
+<div>
+Amount of space not tweening: <input name="visSize" type="range" min="0.001" max="0.999" step="0.001" value="0.6" />
+</div>
+<div>
+Number of words per line: <input name="lineLength" type="range" min="2" max="99" step="1" value="9" />
+</div>
+<input type="submit">
+</form>
+<div id="svg-embed"></div>
+</body>
+</html>
